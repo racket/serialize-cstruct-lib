@@ -114,13 +114,13 @@
               (lambda (s)
                 (force all-serializable)
                 (hash-set! cpointer-mapping s s)
-                (define inplace-bs (make-sized-byte-string s (ctype-sizeof _ID)))
                 (define bs
                   (if serialize-inplace
-                      inplace-bs
-                      (let ([mem (malloc _ID 'atomic)])
-                        (memcpy mem inplace-bs 1 _ID)
-                        (make-sized-byte-string mem (ctype-sizeof _ID)))))
+                      (make-sized-byte-string s (ctype-sizeof _ID))
+                      (let ([mem (make-bytes (ctype-sizeof _ID))])
+                        (when (copy-any-non-pointers? _ID)
+                          (memcpy mem s 1 _ID))
+                        mem)))
                 (vector bs (serialize-cstruct-pointers s)))
               (quote-syntax deser-ID)
               #t
@@ -184,7 +184,6 @@
       (array-base-type (array-type ((ctype-c->scheme ct) #f)))
       ct))
 
-
 (define (ctype-layout-base-type v)
   (if (vector? v)
       (ctype-layout-base-type (vector-ref v 0))
@@ -199,7 +198,8 @@
        (if deserialize-inplace
            (cast bs _bytes _ID-pointer)
            (let ([mem (malloc-ID)])
-             (memcpy mem bs 1 _ID)
+             (when (copy-any-non-pointers? _ID)
+               (memcpy mem bs 1 _ID))
              (cast mem _pointer _ID-pointer))))
      (deserialize-cstruct-pointers s ptrs)
      s)
@@ -230,8 +230,13 @@
                (old-fill! (other-vers-unconvert s0))
                (fill! old-v))))))
 
-(define ptr-types '(bytes string/ucs-4 string/utf-16 pointer))
+(define ptr-types '(bytes string/ucs-4 string/utf-16 pointer gcpointer))
 
+(define (copy-any-non-pointers? _ID)
+  (for/or ([t (in-list (ctype->layout _ID))])
+    (let ([base (ctype-layout-base-type t)])
+      (and (not (list? base))
+           (not (memq base ptr-types))))))
 
 (define (serialize-cstruct-pointers o)
   (define who 'serialize-cstruct-pointers)
