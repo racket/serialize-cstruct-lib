@@ -102,7 +102,7 @@
          (begin
            #,@(if (eq? 'top-level (syntax-local-context))
                   ;; Forward reference:
-                  `((define-syntaxes (all-serializable) (values)))
+                  `((define-syntaxes (copy-any-non-pointers-for-ID? all-serializable) (values)))
                   null)
            
            ;; the wrapped cstruct
